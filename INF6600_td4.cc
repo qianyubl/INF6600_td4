@@ -53,12 +53,12 @@ class Patient {
         int insuline;
 };
 
-enum Message {STOP, START, NONE};
+enum Message {STOP, START, NONE, HALT};
 
 void *t_patient(void *args) {
     Patient *patient = (Patient *)args;
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 30; i++) {
         sleep(1);
         double glycemia = patient->computeGlycemia();
         std::cout <<  "Glycemia : " << glycemia << std::endl;
@@ -84,6 +84,14 @@ void *t_patient(void *args) {
         }
     }
 
+    Message msg= HALT;
+    if(mq_send(qw_glucose, (const char *) &msg,
+                sizeof(msg), 0) < 0)
+        std::cout << "Error sending glucose msg halt" << std::endl;
+    if(mq_send(qw_insuline, (const char *) &msg,
+                sizeof(msg), 0) < 0)
+        std::cout << "Error sending glucose msg halt" << std::endl;
+
     pthread_exit(NULL);
 }
 
@@ -91,7 +99,7 @@ void *t_glucose(void *args) {
     Patient *patient = (Patient *)args;
     bool isInjecting = false;
 
-    for (int i = 0; i < 10; i++) {
+    while (true) {
         sleep(1);
         Message msg = NONE;
         mq_attr attr, old_attr;
@@ -118,20 +126,22 @@ void *t_glucose(void *args) {
         } else if (msg == STOP) {
             isInjecting = false;
             std::cout << "Glucose : Msg stop" << std::endl;
+        } else if (msg == HALT) {
+            std::cout << "Glucose : Msg halt" << std::endl;
+            pthread_exit(NULL);
         }
 
         if (isInjecting)
             patient->injectGlucose();
             std::cout << "Glucose : Injection" << std::endl;
     }
-    pthread_exit(NULL);
 }
 
 void *t_insuline(void *args) {
     Patient *patient = (Patient *)args;
     bool isInjecting = true;
 
-    for(int i = 0; i < 10; i++) {
+    while (true) {
         sleep(1);
         Message msg = NONE;
 
@@ -159,6 +169,9 @@ void *t_insuline(void *args) {
         } else if (msg == STOP) {
             isInjecting = false;
             std::cout << "Insuline : Msg stop" << std::endl;
+        } else if (msg == HALT) {
+            std::cout << "Insuline : Msg halt" << std::endl;
+            pthread_exit(NULL);
         }
 
         if (isInjecting) {
@@ -166,7 +179,6 @@ void *t_insuline(void *args) {
             std::cout << "Insuline : Injection" << std::endl;
         }
     }
-    pthread_exit(NULL);
 }
 
 
