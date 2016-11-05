@@ -58,8 +58,8 @@ enum Message {STOP, START, NONE, HALT};
 void *t_patient(void *args) {
     Patient *patient = (Patient *)args;
 
-    for (int i = 0; i < 30; i++) {
-        sleep(1);
+    for (int i = 0; i < 40; i++) {
+        sleep(0.1);
         double glycemia = patient->computeGlycemia();
         std::cout <<  "Glycemia : " << glycemia << std::endl;
 
@@ -84,7 +84,7 @@ void *t_patient(void *args) {
         }
     }
 
-    Message msg= HALT;
+    Message msg = HALT;
     if(mq_send(qw_glucose, (const char *) &msg,
                 sizeof(msg), 0) < 0)
         std::cout << "Error sending glucose msg halt" << std::endl;
@@ -100,25 +100,24 @@ void *t_glucose(void *args) {
     bool isInjecting = false;
 
     while (true) {
-        sleep(1);
+        sleep(0.1);
         Message msg = NONE;
         mq_attr attr, old_attr;
         mq_getattr(qr_glucose, &attr);
         if (attr.mq_curmsgs != 0) {
             // First set the queue to not block any calls
             attr.mq_flags = O_NONBLOCK;
-            mq_setattr(qr_insuline, &attr, &old_attr);
+            mq_setattr(qr_glucose, &attr, &old_attr);
             // Now consume all of the messages. Only the last one is usefull
             while (mq_receive(qr_glucose, (char *) &msg, MSG_SIZE, NULL) != -1) {}
             if (errno == EAGAIN)
-                std::cout << "No message is glucose queue" << std::endl;
+                std::cout << "No more messages in glucose queue" << std::endl;
             else
                 std::cout << "Error receiving glucose msg" << std::endl;
 
             // Now restore the attributes
             mq_setattr (qr_glucose, &old_attr, NULL);
         }
-        int byte_read = mq_receive(qr_glucose, (char *) &msg, MSG_SIZE, NULL);
 
         if (msg== START) {
             isInjecting = true;
@@ -132,8 +131,8 @@ void *t_glucose(void *args) {
         }
 
         if (isInjecting)
-            patient->injectGlucose();
             std::cout << "Glucose : Injection" << std::endl;
+            patient->injectGlucose();
     }
 }
 
@@ -142,7 +141,7 @@ void *t_insuline(void *args) {
     bool isInjecting = true;
 
     while (true) {
-        sleep(1);
+        sleep(0.1);
         Message msg = NONE;
 
         mq_attr attr, old_attr;
@@ -155,7 +154,7 @@ void *t_insuline(void *args) {
             // Now eat all of the messages
             while (mq_receive(qr_insuline, (char *) &msg, MSG_SIZE, NULL) != -1) {}
             if (errno == EAGAIN)
-                std::cout << "No message is insuline queue" << std::endl;
+                std::cout << "No more messages in insuline queue" << std::endl;
             else
                 std::cout << "Error receiving insuline msg" << std::endl;
 
@@ -183,7 +182,6 @@ void *t_insuline(void *args) {
 
 
 int main(int argc, char **argv) {
-    std::cout << "Hello world : " << sizeof(Message) << std::endl;
 
     Patient patient;
     pthread_mutex_init(&patient.m_glucose, NULL);
