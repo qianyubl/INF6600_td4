@@ -16,7 +16,16 @@ mqd_t qr_insuline;
 class Patient {
     public:
 
-        Patient() : glucose(100), insuline(0) {}
+        Patient()
+        : glucose(100), insuline(0) {
+            pthread_mutex_init(&m_glucose, NULL);
+            pthread_mutex_init(&m_insuline, NULL);
+        }
+
+        ~Patient() {
+            pthread_mutex_destroy(&m_glucose);
+            pthread_mutex_destroy(&m_insuline);
+        }
 
         static const double glycemia_ref = 120;
         static const double glycemia_crit = 60;
@@ -49,6 +58,7 @@ class Patient {
 
         pthread_mutex_t m_glucose;
         pthread_mutex_t m_insuline;
+    private:
         int glucose;
         int insuline;
 };
@@ -184,8 +194,6 @@ void *t_insuline(void *args) {
 int main(int argc, char **argv) {
 
     Patient patient;
-    pthread_mutex_init(&patient.m_glucose, NULL);
-    pthread_mutex_init(&patient.m_insuline, NULL);
 
     mq_attr attr_glucose, attr_insuline;
 
@@ -238,9 +246,6 @@ int main(int argc, char **argv) {
     mq_close(qr_insuline);
     mq_close(qw_insuline);
     mq_unlink("q_insuline");
-
-    pthread_mutex_destroy(&patient.m_glucose);
-    pthread_mutex_destroy(&patient.m_insuline);
 
     pthread_exit(NULL);
 }
