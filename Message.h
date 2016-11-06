@@ -45,9 +45,9 @@ struct MQHandler {
         if(qr_display == (mqd_t)0)
             std::cout << "Error creating `qr_display`" << std::endl;
 
-        qw_insuline = mq_open("q_insuline", O_WRONLY);
-        if(qw_insuline == (mqd_t)0)
-            std::cout << "Error creating `qw_insuline`"<< std::endl;
+        qw_display = mq_open("q_display", O_WRONLY);
+        if(qw_display == (mqd_t)0)
+            std::cout << "Error creating `qw_display`"<< std::endl;
     }
 
     ~MQHandler() {

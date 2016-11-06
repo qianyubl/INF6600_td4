@@ -52,6 +52,9 @@ void *t_controller(void *args) {
     if(mq_send(mqHandler->qw_insuline, (const char *) &msg,
                 sizeof(msg), 0) < 0)
         std::cout << "Error sending glucose msg halt" << std::endl;
+    if(mq_send(mqHandler->qw_display, (const char *) &msg,
+                sizeof(msg), 0) < 0)
+        std::cout << "Error sending display msg halt" << std::endl;
 
     pthread_exit(NULL);
 }
@@ -174,7 +177,7 @@ void *t_display(void *args) {
         }
         std::cout << msgText << std::endl;
 
-        if (msg == STOP) {
+        if (msg == HALT) {
             pthread_exit(NULL);
         }
     }
