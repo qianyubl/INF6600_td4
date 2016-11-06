@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 #include <mqueue.h>
-#include <string.h>
+#include <string>
 #include <errno.h>
 
 #define MSG_SIZE 4096
@@ -12,6 +12,8 @@ mqd_t qw_glucose;
 mqd_t qr_glucose;
 mqd_t qw_insuline;
 mqd_t qr_insuline;
+mqd_t qw_display;
+mqd_t qr_display;
 
 class Patient {
     public:
@@ -63,9 +65,15 @@ class Patient {
         int insuline;
 };
 
-enum Message {STOP, START, NONE, HALT};
+enum Message {STOP,
+    START,
+    NONE,
+    HALT,
+    GLYCEMIA_CRITICAL,
+    GLYCEMIA_NORMAL
+};
 
-void *t_patient(void *args) {
+void *t_controller(void *args) {
     Patient *patient = (Patient *)args;
 
     for (int i = 0; i < 40; i++) {
@@ -119,14 +127,15 @@ void *t_glucose(void *args) {
             attr.mq_flags = O_NONBLOCK;
             mq_setattr(qr_glucose, &attr, &old_attr);
             // Now consume all of the messages. Only the last one is usefull
-            while (mq_receive(qr_glucose, (char *) &msg, MSG_SIZE, NULL) != -1) {}
+            while (mq_receive(qr_glucose, (char *) &msg, MSG_SIZE, NULL) != -1)
+            {}
             if (errno == EAGAIN)
                 std::cout << "No more messages in glucose queue" << std::endl;
             else
                 std::cout << "Error receiving glucose msg" << std::endl;
 
             // Now restore the attributes
-            mq_setattr (qr_glucose, &old_attr, NULL);
+            mq_setattr(qr_glucose, &old_attr, NULL);
         }
 
         if (msg== START) {
@@ -162,7 +171,8 @@ void *t_insuline(void *args) {
             attr.mq_flags = O_NONBLOCK;
             mq_setattr(qr_insuline, &attr, &old_attr);
             // Now eat all of the messages
-            while (mq_receive(qr_insuline, (char *) &msg, MSG_SIZE, NULL) != -1) {}
+            while (mq_receive(qr_insuline, (char *) &msg, MSG_SIZE, NULL) != -1)
+            {}
             if (errno == EAGAIN)
                 std::cout << "No more messages in insuline queue" << std::endl;
             else
@@ -190,14 +200,43 @@ void *t_insuline(void *args) {
     }
 }
 
+void *t_display(void *args) {
+
+    while (true) {
+        Message msg = NONE;
+        if (mq_receive(qr_display, (char *) &msg, MSG_SIZE, NULL) == -1) {
+            std::cout << "Error receiving display msg" << std::endl;
+            continue;
+        }
+        std::string msgText;
+        switch(msg) {
+            case HALT:
+                msgText = "Stopping the system...";
+                break;
+            case GLYCEMIA_CRITICAL:
+                msgText = "Glycemia critical";
+                break;
+            case GLYCEMIA_NORMAL:
+                msgText = "Glycemia normal";
+                break;
+            case START:
+            case STOP:
+                break;
+        }
+        std::cout << msgText << std::endl;
+
+        if (msg == STOP) {
+            pthread_exit(NULL);
+        }
+    }
+}
 
 int main(int argc, char **argv) {
 
     Patient patient;
 
-    mq_attr attr_glucose, attr_insuline;
-
     /* initialize the queue attributes */
+    mq_attr attr_glucose, attr_insuline, attr_display;
     attr_glucose.mq_flags = 0;
     attr_glucose.mq_maxmsg = 50;
     attr_glucose.mq_msgsize = MSG_SIZE;
@@ -205,6 +244,10 @@ int main(int argc, char **argv) {
     attr_insuline.mq_flags = 0;
     attr_insuline.mq_maxmsg = 50;
     attr_insuline.mq_msgsize = MSG_SIZE;
+
+    attr_display.mq_flags = 0;
+    attr_display.mq_maxmsg = 50;
+    attr_display.mq_msgsize = MSG_SIZE;
 
     mq_unlink("q_glucose");
     qr_glucose = mq_open("q_glucose",
@@ -226,18 +269,32 @@ int main(int argc, char **argv) {
     if(qw_insuline == (mqd_t)0)
         std::cout << "Error creating `qw_insuline`"<< std::endl;
 
+    mq_unlink("q_display");
+    qr_display = mq_open("q_display",
+            O_CREAT | O_RDONLY, S_IWUSR | S_IRUSR, &attr_display);
+    if(qr_display == (mqd_t)0)
+        std::cout << "Error creating `qr_display`" << std::endl;
+
+    qw_insuline = mq_open("q_insuline", O_WRONLY);
+    if(qw_insuline == (mqd_t)0)
+        std::cout << "Error creating `qw_insuline`"<< std::endl;
+
+    pthread_t th_controller;
+    pthread_create(&th_controller, NULL, t_controller, &patient);
+
     pthread_t th_glucose;
     pthread_create(&th_glucose, NULL, t_glucose, &patient);
 
     pthread_t th_insuline;
     pthread_create(&th_insuline, NULL, t_insuline, &patient);
 
-    pthread_t th_patient;
-    pthread_create(&th_patient, NULL, t_patient, &patient);
+    pthread_t th_display;
+    pthread_create(&th_display, NULL, t_display, NULL);
 
+    pthread_join(th_controller, NULL);
     pthread_join(th_glucose, NULL);
     pthread_join(th_insuline, NULL);
-    pthread_join(th_patient, NULL);
+    pthread_join(th_display, NULL);
 
     mq_close(qr_glucose);
     mq_close(qw_glucose);
