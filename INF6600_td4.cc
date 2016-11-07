@@ -9,6 +9,13 @@
 #include "Patient.h"
 #include "Message.h"
 
+enum Priority {
+    CRITICAL = 20,
+    URGENT = 15,
+    NORMAL = 10,
+    WEAK = 5,
+};
+
 struct Data {
     Patient *patient;
     MQHandler *mqHandler;
@@ -86,7 +93,7 @@ void *t_glucose(void *args) {
             mq_setattr(mqHandler->qr_glucose, &old_attr, NULL);
         }
 
-        if (msg== START) {
+        if (msg == START) {
             isInjecting = true;
             std::cout << "Glucose : Msg start" << std::endl;
         } else if (msg == STOP) {
@@ -97,9 +104,10 @@ void *t_glucose(void *args) {
             pthread_exit(NULL);
         }
 
-        if (isInjecting)
+        if (isInjecting) {
             std::cout << "Glucose : Injection" << std::endl;
             patient->injectGlucose();
+        }
     }
 }
 
@@ -189,17 +197,32 @@ int main(int argc, char **argv) {
     MQHandler mqHandler;
     Data data = {&patient, &mqHandler};
 
+    sched_param s_param;
+    pthread_attr_t attr;
+    setprio(0, 20);
+    pthread_attr_init(&attr);
+    pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+    pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+
     pthread_t th_controller;
-    pthread_create(&th_controller, NULL, t_controller, &data);
+    s_param.sched_priority = CRITICAL;
+    pthread_attr_setschedparam(&attr, &s_param);
+    pthread_create(&th_controller, &attr, t_controller, &data);
 
     pthread_t th_glucose;
-    pthread_create(&th_glucose, NULL, t_glucose, &data);
+    s_param.sched_priority = URGENT;
+    pthread_attr_setschedparam(&attr, &s_param);
+    pthread_create(&th_glucose, &attr, t_glucose, &data);
 
     pthread_t th_insuline;
-    pthread_create(&th_insuline, NULL, t_insuline, &data);
+    s_param.sched_priority = URGENT;
+    pthread_attr_setschedparam(&attr, &s_param);
+    pthread_create(&th_insuline, &attr, t_insuline, &data);
 
     pthread_t th_display;
-    pthread_create(&th_display, NULL, t_display, &data);
+    s_param.sched_priority = NORMAL;
+    pthread_attr_setschedparam(&attr, &s_param);
+    pthread_create(&th_display, &attr, t_display, &data);
 
     pthread_join(th_controller, NULL);
     pthread_join(th_glucose, NULL);
