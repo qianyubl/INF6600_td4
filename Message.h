@@ -11,6 +11,7 @@ struct MQHandler {
     mqd_t qr_insuline;
     mqd_t qw_display;
     mqd_t qr_display;
+    pthread_cond_t cv_syringe;
 
     MQHandler() {
         /* initialize the queue attributes */
@@ -48,6 +49,8 @@ struct MQHandler {
         qw_display = mq_open("q_display", O_WRONLY);
         if(qw_display == (mqd_t)0)
             std::cout << "Error creating `qw_display`"<< std::endl;
+
+    pthread_cond_init(&cv_syringe, NULL);
     }
 
     ~MQHandler() {
