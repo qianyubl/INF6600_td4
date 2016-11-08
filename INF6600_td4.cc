@@ -92,9 +92,7 @@ void *t_glucose(void *args) {
             // Now consume all of the messages. Only the last one is usefull
             while (mq_receive(mqHandler->qr_glucose, (char *) &msg, MSG_SIZE, NULL) != -1)
             {}
-            if (errno == EAGAIN)
-                std::cout << "No more messages in glucose queue" << std::endl;
-            else
+            if (errno != EAGAIN)
                 std::cout << "Error receiving glucose msg" << std::endl;
 
             // Now restore the attributes
@@ -140,9 +138,7 @@ void *t_insuline(void *args) {
             // Now eat all of the messages
             while (mq_receive(mqHandler->qr_insuline,
                         (char *) &msg, MSG_SIZE, NULL) != -1) {}
-            if (errno == EAGAIN)
-                std::cout << "No more messages in insuline queue" << std::endl;
-            else
+            if (errno != EAGAIN)
                 std::cout << "Error receiving insuline msg" << std::endl;
 
             // Now restore the attributes
@@ -192,6 +188,12 @@ void *t_display(void *args) {
             case GLYCEMIA_NORMAL:
                 msgText = "Glycemia normal";
                 break;
+            case ANTIBIO_INJECT:
+                msgText = "Antibiotic injection";
+                break;
+            case ANTICOAG_INJECT:
+                msgText = "Antiocoagulant injection";
+                break;
             case START:
             case STOP:
                 break;
@@ -230,26 +232,22 @@ void *t_syringe(void *args) {
 
 void t_antibio(sigval args) {
     Data *data = (Data *) args.sival_ptr;
-    //Data *data = (Data *) args;
     MQHandler *mqHandler = data->mqHandler;
 
-    std::cout << "CA MARCHE !!" << std::endl;
-    Message msg = START;
+    Message msg = ANTIBIO_INJECT;
     if(mq_send(mqHandler->qw_display, (const char *) &msg,
                 sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending display msg halt" << std::endl;
+        std::cout << "Error sending display msg ANTIBIO_INJECT" << std::endl;
 }
 
 void t_anticoag(sigval args) {
     Data *data = (Data *) args.sival_ptr;
-    //Data *data = (Data *) args;
     MQHandler *mqHandler = data->mqHandler;
 
-    std::cout << "CA MARCHE !!" << std::endl;
-    Message msg = START;
+    Message msg = ANTICOAG_INJECT;
     if(mq_send(mqHandler->qw_display, (const char *) &msg,
                 sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending display msg halt" << std::endl;
+        std::cout << "Error sending display msg ANTICOAG_INJECT" << std::endl;
 }
 
 int main(int argc, char **argv) {
