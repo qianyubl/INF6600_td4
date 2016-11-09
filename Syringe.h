@@ -24,6 +24,10 @@ public:
         return s_level[s_active];
     }
 
+    int getActiveSyringe() {
+        return s_active;
+    }
+
     void syringeSwitch() {
         pthread_mutex_lock(&m_syringe);
         s_active = 1 - s_active;

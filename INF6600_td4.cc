@@ -6,6 +6,7 @@
 #include <string>
 #include <errno.h>
 
+#include "Error.h"
 #include "Patient.h"
 #include "Message.h"
 #include "Syringe.h"
@@ -30,41 +31,41 @@ void *t_controller(void *args) {
     Syringe *sManager = data->sManager;
 
     for (int i = 0; i < 40; i++) {
-        sleep(1);
+        usleep(100);
         double glycemia = patient->computeGlycemia();
         std::cout <<  "Glycemia : " << glycemia << std::endl;
 
         if (glycemia <= patient->glycemia_crit) {
             Message msg_glucose = START;
             Message msg_insuline = STOP;
-            if(mq_send(mqHandler->qw_glucose, (const char *) &msg_glucose,
-                        sizeof(msg_glucose), CRITICAL) < 0)
-                std::cout << "Error sending glucose msg" << std::endl;
-            if(mq_send(mqHandler->qw_insuline, (const char *) &msg_insuline,
-                        sizeof(msg_insuline), CRITICAL) < 0)
-                std::cout << "Error sending insuline msg" << std::endl;
+            int r = mq_send(mqHandler->qw_glucose, (const char *) &msg_glucose,
+                        sizeof(msg_glucose), CRITICAL);
+            CHECK(r >= 0, "Error sending glucose msg");
+            r = mq_send(mqHandler->qw_insuline, (const char *) &msg_insuline,
+                        sizeof(msg_insuline), CRITICAL);
+            CHECK(r >= 0, "Error sending insuline msg");
         } else if (glycemia >= patient->glycemia_ref) {
             Message msg_glucose = STOP;
             Message msg_insuline = START;
-            if(mq_send(mqHandler->qw_glucose, (const char *) &msg_glucose,
-                        sizeof(msg_glucose), URGENT) < 0)
-                std::cout << "Error sending glucose msg" << std::endl;
-            if(mq_send(mqHandler->qw_insuline, (const char *) &msg_insuline,
-                        sizeof(msg_insuline), URGENT) < 0)
-                std::cout << "Error sending insuline  msg" << std::endl;
+            int r = mq_send(mqHandler->qw_glucose, (const char *) &msg_glucose,
+                        sizeof(msg_glucose), URGENT);
+            CHECK(r >= 0, "Error sending glucose msg");
+            r = mq_send(mqHandler->qw_insuline, (const char *) &msg_insuline,
+                        sizeof(msg_insuline), URGENT);
+            CHECK(r >= 0, "Error sending insuline  msg");
         }
     }
 
     Message msg = HALT;
-    if(mq_send(mqHandler->qw_glucose, (const char *) &msg,
-                sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending glucose msg halt" << std::endl;
-    if(mq_send(mqHandler->qw_insuline, (const char *) &msg,
-                sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending glucose msg halt" << std::endl;
-    if(mq_send(mqHandler->qw_display, (const char *) &msg,
-                sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending display msg halt" << std::endl;
+    int r = mq_send(mqHandler->qw_glucose, (const char *) &msg,
+                sizeof(msg), NORMAL);
+    CHECK(r >= 0, "Error sending glucose msg halt");
+    r = mq_send(mqHandler->qw_insuline, (const char *) &msg,
+                sizeof(msg), NORMAL);
+    CHECK(r >= 0, "Error sending glucose msg halt");
+    r = mq_send(mqHandler->qw_display, (const char *) &msg,
+                sizeof(msg), NORMAL);
+    CHECK(r >= 0, "Error sending display msg halt");
 
     pthread_mutex_lock(&sManager->m_syringe);
     sManager->stop();
@@ -81,7 +82,7 @@ void *t_glucose(void *args) {
     bool isInjecting = false;
 
     while (true) {
-        sleep(1);
+        usleep(100);
         Message msg = NONE;
         mq_attr attr, old_attr;
         mq_getattr(mqHandler->qr_glucose, &attr);
@@ -90,10 +91,9 @@ void *t_glucose(void *args) {
             attr.mq_flags = O_NONBLOCK;
             mq_setattr(mqHandler->qr_glucose, &attr, &old_attr);
             // Now consume all of the messages. Only the last one is usefull
-            while (mq_receive(mqHandler->qr_glucose, (char *) &msg, MSG_SIZE, NULL) != -1)
-            {}
-            if (errno != EAGAIN)
-                std::cout << "Error receiving glucose msg" << std::endl;
+            while (mq_receive(mqHandler->qr_glucose,
+                        (char *) &msg, MSG_SIZE, NULL) != -1) {}
+            CHECK(errno == EAGAIN, "Error receiving glucose msg");
 
             // Now restore the attributes
             mq_setattr(mqHandler->qr_glucose, &old_attr, NULL);
@@ -125,7 +125,7 @@ void *t_insuline(void *args) {
     bool isInjecting = true;
 
     while (true) {
-        sleep(1);
+        usleep(100);
         Message msg = NONE;
 
         mq_attr attr, old_attr;
@@ -138,11 +138,10 @@ void *t_insuline(void *args) {
             // Now eat all of the messages
             while (mq_receive(mqHandler->qr_insuline,
                         (char *) &msg, MSG_SIZE, NULL) != -1) {}
-            if (errno != EAGAIN)
-                std::cout << "Error receiving insuline msg" << std::endl;
+            CHECK(errno == EAGAIN, "Error receiving insuline msg");
 
             // Now restore the attributes
-            mq_setattr (mqHandler->qr_insuline, &old_attr, NULL);
+            mq_setattr(mqHandler->qr_insuline, &old_attr, NULL);
         }
 
         if (msg == START) {
@@ -173,7 +172,9 @@ void *t_display(void *args) {
 
     while (true) {
         Message msg = NONE;
-        if (mq_receive(mqHandler->qr_display, (char *) &msg, MSG_SIZE, NULL) == -1) {
+        if (mq_receive(mqHandler->qr_display,
+                    (char *) &msg, MSG_SIZE, NULL) == -1)
+        {
             std::cout << "Error receiving display msg" << std::endl;
             continue;
         }
@@ -194,8 +195,21 @@ void *t_display(void *args) {
             case ANTICOAG_INJECT:
                 msgText = "Antiocoagulant injection";
                 break;
+            case SYRINGE_1_LOW:
+                msgText = "Solution level in syringe 1 is low";
+                break;
+            case SYRINGE_2_LOW:
+                msgText = "Solution level in syringe 2 is low";
+                break;
+            case SYRINGE_1_CRITICAL:
+                msgText = "Solution level in syringe 1 is critical";
+                break;
+            case SYRINGE_2_CRITICAL:
+                msgText = "Solution level in syringe 2 is critical";
+                break;
             case START:
             case STOP:
+            case NONE:
                 break;
         }
         std::cout << msgText << std::endl;
@@ -216,16 +230,34 @@ void *t_syringe(void *args) {
         pthread_mutex_lock(&sManager->m_syringe);
         pthread_cond_wait(&mqHandler->cv_syringe, &sManager->m_syringe);
         double level = sManager->inspect();
+        int s_active = sManager->getActiveSyringe();
         pthread_mutex_unlock(&sManager->m_syringe);
+
+        Message msg = NONE;
 
         if (level < 0) {
             pthread_exit(NULL);
         } else if (level <= Syringe::level_critical) {
             // envoyer message
+            if (s_active == 0)
+                msg = SYRINGE_1_CRITICAL;
+            else
+                msg = SYRINGE_2_CRITICAL;
+
             sManager->syringeSwitch();
             sManager->reset();
         } else if (level <= Syringe::level_weak) {
             // envoyer message
+            if (s_active == 0)
+                msg = SYRINGE_1_LOW;
+            else
+                msg = SYRINGE_2_LOW;
+        }
+
+        if (msg != NONE) {
+            int r = mq_send(mqHandler->qw_glucose, (const char *) &msg,
+                        sizeof(msg), URGENT);
+            CHECK(r >= 0, "Error sending syringe level msg");
         }
     }
 }
@@ -235,9 +267,9 @@ void t_antibio(sigval args) {
     MQHandler *mqHandler = data->mqHandler;
 
     Message msg = ANTIBIO_INJECT;
-    if(mq_send(mqHandler->qw_display, (const char *) &msg,
-                sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending display msg ANTIBIO_INJECT" << std::endl;
+    int r = mq_send(mqHandler->qw_display, (const char *) &msg,
+                sizeof(msg), NORMAL);
+    CHECK(r >= 0, "Error sending display msg ANTIBIO_INJECT");
 }
 
 void t_anticoag(sigval args) {
@@ -245,9 +277,9 @@ void t_anticoag(sigval args) {
     MQHandler *mqHandler = data->mqHandler;
 
     Message msg = ANTICOAG_INJECT;
-    if(mq_send(mqHandler->qw_display, (const char *) &msg,
-                sizeof(msg), NORMAL) < 0)
-        std::cout << "Error sending display msg ANTICOAG_INJECT" << std::endl;
+    int r = mq_send(mqHandler->qw_display, (const char *) &msg,
+                sizeof(msg), NORMAL);
+    CHECK(r >= 0, "Error sending display msg ANTICOAG_INJECT");
 }
 
 int main(int argc, char **argv) {
