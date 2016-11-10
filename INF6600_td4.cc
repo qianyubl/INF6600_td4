@@ -223,7 +223,6 @@ void *t_display(void *args) {
             case INSULINE_STOP:
                 msgText = "Stop insuline injection";
                 break;
-
             case ANTIBIO_INJECT:
                 msgText = "Antibiotic injection";
                 break;
@@ -240,7 +239,7 @@ void *t_display(void *args) {
                 msgText = "Solution level in syringe 1 reaches 1%";
                 break;
             case SYRINGE_2_CRITICAL:
-                msgText = "Solution level in syringe 2 reaches 5%";
+                msgText = "Solution level in syringe 2 reaches 1%";
                 break;
             case SWITCH:
                 msgText = "Switch between syringe";
