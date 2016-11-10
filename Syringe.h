@@ -7,7 +7,7 @@
 class Syringe {
 public:
     Syringe() : s_active(0) {
-        s_level[0] = 10;
+        s_level[0] = 100;
         s_level[1] = 100;
         pthread_mutex_init(&m_syringe, NULL);
     }
@@ -47,7 +47,7 @@ public:
 
     static const double level_critical = 1;
     static const double level_weak = 5;
-    static const double s_step = 2;
+    static const double s_step = 1;
 
     pthread_mutex_t m_syringe;
 

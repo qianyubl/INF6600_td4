@@ -19,10 +19,10 @@ class Patient {
 
         static const double glycemia_ref = 120;
         static const double glycemia_crit = 60;
-        static const int glucose_step = 10;
-        static const int insuline_step = 30;
-        static const int Kg = 1;
-        static const int Ki = 1;
+        static const int glucose_step = 1;
+        static const int insuline_step = 1;
+        static const double Kg = 1.6;
+        static const double Ki = 1.36;
 
         double computeGlycemia() {
             pthread_mutex_lock(&m_glucose);
