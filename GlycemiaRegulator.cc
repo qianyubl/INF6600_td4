@@ -313,13 +313,25 @@ void *t_syringe(void *args) {
             else
                 msg = SYRINGE_2_CRITICAL;
 
-            sManager->syringeSwitch();
-            sManager->reset();
             // add message in q_display queue indicating that syringe level
             // reach 1%
             int r = mq_send(mqHandler->qw_display, (const char *) &msg,
                     sizeof(msg), URGENT);
             CHECK(r >= 0, "Error sending syringe level msg");
+
+            sManager->syringeSwitch();
+
+            msg = SWITCH;
+            r = mq_send(mqHandler->qw_display, (const char *) &msg,
+                    sizeof(msg), NORMAL);
+            CHECK(r >= 0, "Error sending syringe switch msg");
+
+            sManager->reset();
+
+            msg = RESET;
+            r = mq_send(mqHandler->qw_display, (const char *) &msg,
+                    sizeof(msg), NORMAL);
+            CHECK(r >= 0, "Error sending syringe reset msg");
         } else if (level == Syringe::level_weak) {
             if (s_active == 0)
                 msg = SYRINGE_1_LOW;
