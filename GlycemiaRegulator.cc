@@ -43,10 +43,10 @@ void *t_controller(void *args) {
 
     for (int i = 0; i < EXECUTION_CYCLE; ++i) {
         usleep(1000000 * CYCLE_TIME * FACTOR_TIME);
-	// call the glycemia module
+        // call the glycemia module
         double glycemia = patient->computeGlycemia();
-	// case of critical glycemia
-	// add messages in glucose, insuline and display queues 
+        // case of critical glycemia
+        // add messages in glucose, insuline and display queues
         if (glycemia <= patient->glycemia_crit) {
             Message msg_glucose = START;
             Message msg_insuline = STOP;
@@ -62,8 +62,8 @@ void *t_controller(void *args) {
                         sizeof(msg_critical), CRITICAL);
             CHECK(r >= 0, "Error sending display msg");
         } else if (glycemia >= patient->glycemia_ref) {
-	// case of normal glycemia
-	// add messages in glucose, insuline and display queues 
+            // case of normal glycemia
+            // add messages in glucose, insuline and display queues
             Message msg_glucose = STOP;
             Message msg_insuline = START;
             Message msg_normal = GLYCEMIA_NORMAL;
@@ -126,8 +126,8 @@ void *t_glucose(void *args) {
             // Now restore the attributes
             mq_setattr(mqHandler->qr_glucose, &old_attr, NULL);
         }
-	// set the variable is injecting to start the injection 		  
-	// and add a message in q_display_queue     
+        // set the variable is injecting to start the injection
+        // and add a message in q_display_queue
         if (msg == START) {
             isInjecting = true;
             Message msg = GLUCOSE_START;
@@ -135,18 +135,19 @@ void *t_glucose(void *args) {
                         sizeof(msg), URGENT);
             CHECK(r >= 0, "Error sending display msg");
         } else if (msg == STOP) {
-	// add a message in q_display_queue to indiquate the glucose injection stop     
+            // add a message in q_display_queue to indiquate the glucose
+            // injection stop
             Message msg = GLUCOSE_STOP;
             int r = mq_send(mqHandler->qw_display, (const char *) &msg,
                         sizeof(msg), NORMAL);
             CHECK(r >= 0, "Error sending display msg");
             isInjecting = false;
-        } else if (msg == HALT) {     
+        } else if (msg == HALT) {
             pthread_exit(NULL);
         }
 
         if (isInjecting) {
-	// glucose injection     
+            // glucose injection
             patient->injectGlucose();
         }
     }
@@ -175,17 +176,17 @@ void *t_insuline(void *args) {
 
             mq_setattr(mqHandler->qr_insuline, &old_attr, NULL);
         }
-	  
+
         if (msg == START) {
-	   // set the variable is injecting to start the injection 		  
-	   // and add a message in q_display_queue     
+            // set the variable is injecting to start the injection
+            // and add a message in q_display_queue
             isInjecting = true;
             Message msg = INSULINE_START;
             int r = mq_send(mqHandler->qw_display, (const char *) &msg,
                         sizeof(msg), URGENT);
             CHECK(r >= 0, "Error sending display msg");
         } else if (msg == STOP) {
-	    // add a message in q_display_queue     
+            // add a message in q_display_queue
             Message msg = INSULINE_STOP;
             int r = mq_send(mqHandler->qw_display, (const char *) &msg,
                         sizeof(msg), NORMAL);
@@ -196,21 +197,21 @@ void *t_insuline(void *args) {
         }
 
         if (isInjecting) {
-	    // pump the insuline solution
-            // this action need to be protected by a mutex as 
-	    // s_level variable is shared with t_syringe task
+            // pump the insuline solution
+            // this action need to be protected by a mutex as
+            // s_level variable is shared with t_syringe task
             pthread_mutex_lock(&sManager->m_syringe);
             sManager->pump();
             // send a signal that indiquate that syringe level is changing
             pthread_cond_signal(&mqHandler->cv_syringe);
             pthread_mutex_unlock(&sManager->m_syringe);
-	    // pump the insuline solution
+            // pump the insuline solution
             patient->injectInsuline();
         }
     }
 }
 
-// task responsable of displaying the alerts and informations 
+// task responsable of displaying the alerts and informations
 // messages found in qr_display queue
 void *t_display(void *args) {
     Data *data = (Data *) args;
@@ -292,7 +293,7 @@ void *t_syringe(void *args) {
     Syringe *sManager = data->sManager;
 
     while (true) {
-	// waiting for condvar signal indiquating that the current syringe level changed	
+        // waiting for condvar signal indiquating that the current syringe level changed
         pthread_mutex_lock(&sManager->m_syringe);
         pthread_cond_wait(&mqHandler->cv_syringe, &sManager->m_syringe);
         // read the shared variables s_level and s_activate
@@ -303,7 +304,7 @@ void *t_syringe(void *args) {
         Message msg = NONE;
 
         if (level < 0) {
-	    // stop the thread
+            // stop the thread
             pthread_exit(NULL);
         } else if (level == Syringe::level_critical) {
             // switch and reset syringe when level reach 1%
@@ -314,7 +315,8 @@ void *t_syringe(void *args) {
 
             sManager->syringeSwitch();
             sManager->reset();
-	    // add message in q_display queue indicating that syringe level reach 1%
+            // add message in q_display queue indicating that syringe level
+            // reach 1%
             int r = mq_send(mqHandler->qw_display, (const char *) &msg,
                     sizeof(msg), URGENT);
             CHECK(r >= 0, "Error sending syringe level msg");
@@ -323,7 +325,7 @@ void *t_syringe(void *args) {
                 msg = SYRINGE_1_LOW;
             else
                 msg = SYRINGE_2_LOW;
-	    // add message in q_display queue indicating that syringe level reach 5%
+            // add message in q_display queue indicating that syringe level reach 5%
             int r = mq_send(mqHandler->qw_display, (const char *) &msg,
                     sizeof(msg), NORMAL);
             CHECK(r >= 0, "Error sending syringe level msg");
@@ -331,7 +333,7 @@ void *t_syringe(void *args) {
     }
 }
 
-// add a message ANTIBIO_INJECT in the display queue 
+// add a message ANTIBIO_INJECT in the display queue
 void t_antibio(sigval args) {
     Data *data = (Data *) args.sival_ptr;
     MQHandler *mqHandler = data->mqHandler;
@@ -342,7 +344,7 @@ void t_antibio(sigval args) {
     CHECK(r >= 0, "Error sending display msg ANTIBIO_INJECT");
 }
 
-// add a message ANTICOAG_INJECT in the display queue 
+// add a message ANTICOAG_INJECT in the display queue
 void t_anticoag(sigval args) {
     Data *data = (Data *) args.sival_ptr;
     MQHandler *mqHandler = data->mqHandler;
@@ -368,7 +370,7 @@ int main(int argc, char **argv) {
     pthread_attr_init(&attr);
     pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
-	
+
     // create the thread th_controller with most high priority
     pthread_t th_controller;
     s_param.sched_priority = VERY_CRITICAL;
@@ -406,7 +408,7 @@ int main(int argc, char **argv) {
 
     SIGEV_THREAD_INIT(&eventAntibio, t_antibio, &data, NULL);
     timer_create(CLOCK_REALTIME, &eventAntibio, &timerAntibioId);
-	
+
     // set the start time for the timer
     timerAntibio.it_value.tv_sec = clock_t(130 * FACTOR_TIME);
     timerAntibio.it_value.tv_nsec= 0;
